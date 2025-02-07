@@ -1,0 +1,4 @@
+beautifulsoup4==4.12.3
+requests==2.32.2
+selenium==4.19.0
+sentry-sdk==2.20.0
