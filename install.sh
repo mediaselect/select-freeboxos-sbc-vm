@@ -119,8 +119,8 @@ step_5_geckodriver_download() {
 
   if echo "${arch64[@],,}" | grep -q "$cpu_five_chars"
   then
-    wget https://github.com/mozilla/geckodriver/releases/download/v0.34.0/geckodriver-v0.34.0-linux-aarch64.tar.gz
-    sudo -u $user bash -c "tar xzvf geckodriver-v0.34.0-linux-aarch64.tar.gz"
+    wget https://github.com/mozilla/geckodriver/releases/download/v0.35.0/geckodriver-v0.35.0-linux-aarch64.tar.gz
+    sudo -u $user bash -c "tar xzvf geckodriver-v0.35.0-linux-aarch64.tar.gz"
   elif echo "${arch32[@],,}" | grep -q "$cpu_five_chars"
   then
     wget https://github.com/jamesmortensen/geckodriver-arm-binaries/releases/download/v0.34.0/geckodriver-v0.34.0-linux-armv7l.tar.gz
