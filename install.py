@@ -68,7 +68,7 @@ def get_gpg_keys():
 user = os.getenv("USER")
 
 logging.basicConfig(
-    filename="/home/" + user + "/.local/share/select_freeboxos/logs/select_freeboxos.log",
+    filename=f"/home/{user}/.local/share/select_freeboxos/logs/select_freeboxos.log",
     format="%(asctime)s %(levelname)s: %(message)s",
     level=logging.INFO,
 )
@@ -89,7 +89,7 @@ stdout, stderr = ip_ad.communicate()
 FREEBOX_SERVER_IP = stdout.split()[2]
 
 print("\nLe programme a détecté que votre routeur "
-        "a l'adresse IP " + FREEBOX_SERVER_IP + "\n\nLe programme va "
+        f"a l'adresse IP {FREEBOX_SERVER_IP}\n\nLe programme va "
         "maintenant vérifier si celui-ci est celui de la Freebox server\n")
 
 url = "http://" + FREEBOX_SERVER_IP
@@ -146,7 +146,7 @@ while title != "Freebox OS":
         FREEBOX_SERVER_IP = stdout.split()[2]
 
         print("\nLe programme a détecté que votre routeur "
-            "a l'adresse IP " + FREEBOX_SERVER_IP + "\n\nLe programme va "
+            f"a l'adresse IP {FREEBOX_SERVER_IP}\n\nLe programme va "
             "maitenant vérifier si celui-ci est celui de la Freebox server\n")
     elif option == "2":
         FREEBOX_SERVER_IP = input(
@@ -194,14 +194,14 @@ except SessionNotCreatedException as e:
 
 try:
     if https:
-        driver.get("https://" + FREEBOX_SERVER_IP + "/login.php")
+        driver.get(f"https://{FREEBOX_SERVER_IP}/login.php")
     else:
-        driver.get("http://" + FREEBOX_SERVER_IP + "/login.php")
+        driver.get(f"http://{FREEBOX_SERVER_IP}/login.php")
 except WebDriverException as e:
     if 'net::ERR_ADDRESS_UNREACHABLE' in e.msg:
-        print("The programme cannot reach the address " + FREEBOX_SERVER_IP + " . Exit programme.")
+        print(f"The programme cannot reach the address {FREEBOX_SERVER_IP} . Exit programme.")
         logging.error(
-            "The programme cannot reach the address " + FREEBOX_SERVER_IP + " . Exit programme."
+            f"The programme cannot reach the address {FREEBOX_SERVER_IP} . Exit programme."
         )
         driver.quit()
         exit()
@@ -430,7 +430,7 @@ if go_on:
             "CURL_MINUTE"
             ]
 
-    with open("/home/" + user + "/.config/select_freeboxos/config.py", "w") as conf:
+    with open(f"/home/{user}/.config/select_freeboxos/config.py", "w", encoding='utf-8') as conf:
         for param in params:
             if "ADMIN_PASSWORD" in param:
                 if crypted.lower() == "oui":
@@ -549,7 +549,7 @@ if go_on:
             run(["touch", netrc_path], check=True)
             os.chmod(netrc_path, 0o600)
 
-        with open(f"/home/{user}/.netrc", "r") as file:
+        with open(f"/home/{user}/.netrc", "r", encoding='utf-8') as file:
             lines = file.read().splitlines()
 
         try:
@@ -561,7 +561,7 @@ if go_on:
             lines.append(f"  login {username_mediaselect}")
             lines.append(f"  password {password_mediaselect}")
 
-        with open(f"/home/{user}/.netrc", "w") as file:
+        with open(f"/home/{user}/.netrc", "w", encoding='utf-8') as file:
             for line in lines:
                 file.write(line + "\n")
 
@@ -621,7 +621,7 @@ if go_on:
             exit()
 
         backup_file = os.path.join(os.path.expanduser("~"), ".crontab_backup")
-        with open(backup_file, "w") as f:
+        with open(backup_file, "w", encoding='utf-8') as f:
             try:
                 result = run(["crontab", "-l"], check=True, stdout=f, stderr=PIPE, universal_newlines=True, user=user)
             except CalledProcessError as e:
@@ -632,7 +632,7 @@ if go_on:
                     raise
 
         cron_file = os.path.join(os.path.expanduser("~"), ".local", "share", "select_freeboxos", "cron_tasks.sh")
-        with open(cron_file, "w") as f:
+        with open(cron_file, "w", encoding='utf-8') as f:
             try:
                 result = run(["crontab", "-l"], check=True, stdout=f, stderr=PIPE, universal_newlines=True, user=user)
             except CalledProcessError as e:
@@ -642,7 +642,7 @@ if go_on:
                     raise
         os.chmod(cron_file, 0o700)
         with open(
-            f"/home/{user}/.local/share/select_freeboxos/cron_tasks.sh", "r"
+            f"/home/{user}/.local/share/select_freeboxos/cron_tasks.sh", "r", encoding='utf-8'
         ) as crontab_file:
             cron_lines = crontab_file.readlines()
 
@@ -699,7 +699,7 @@ if go_on:
             cron_lines.append(cron_auto_update)
 
         with open(
-            "/home/" + user + "/.local/share/select_freeboxos" "/cron_tasks.sh", "w"
+            f"/home/{user}/.local/share/select_freeboxos/cron_tasks.sh", "w", encoding='utf-8'
         ) as crontab_file:
             for cron_task in cron_lines:
                 crontab_file.write(cron_task)
