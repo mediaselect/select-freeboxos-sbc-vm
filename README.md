@@ -1,4 +1,4 @@
-# select-freeboxos-sbc-vm v1.0.0:
+# select-freeboxos-sbc-vm v2.0.0:
 
 ## Instructions d'installation:
 
