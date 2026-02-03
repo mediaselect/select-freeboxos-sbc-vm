@@ -70,7 +70,12 @@ step_2_mainpackage() {
 step_3_freeboxos_download() {
   echo "---------------------------------------------------------------------"
   echo "Starting step 3 - freeboxos download"
-  HOME_DIR=$(eval echo ~$SUDO_USER)
+  user=${SUDO_USER:-$USER}
+  HOME_DIR=$(getent passwd "$user" | cut -d: -f6)
+  if [ -z "$HOME_DIR" ]; then
+    echo "ERROR: unable to determine home directory for user '$user'" >&2
+    exit 1
+  fi
   cd "$HOME_DIR" && curl https://github.com/mediaselect/select-freeboxos-sbc-vm/archive/refs/tags/v2.0.0.zip -L -o select_freebox.zip
   selectos=$(ls "$HOME_DIR" | grep select-freeboxos)
   pretty=$(grep 'PRETTY_NAME=' /etc/os-release | cut -d'=' -f2 | tr -d '"')
