@@ -143,6 +143,26 @@ step_5_geckodriver_download() {
   echo "Step 5 - geckodriver download done"
 }
 
+step_6_install_gpg_key() {
+  echo "---------------------------------------------------------------------"
+  echo "Step 6 - Installing GPG public key"
+
+  SRC_KEY="$HOME_DIR/select-freeboxos/.gpg/public.key"
+  DEST_DIR="$HOME_DIR/.config/select_freeboxos"
+  DEST_KEY="$DEST_DIR/public.key"
+
+  if [ ! -f "$SRC_KEY" ]; then
+    echo "ERROR: GPG public key not found at $SRC_KEY"
+    exit 1
+  fi
+
+  sudo -u "$user" mkdir -p "$DEST_DIR"
+  sudo -u "$user" cp "$SRC_KEY" "$DEST_KEY"
+  sudo -u "$user" chmod 640 "$DEST_KEY"
+
+  echo "Step 6 - GPG public key installed"
+}
+
 
 STEP=0
 
@@ -154,6 +174,7 @@ case ${STEP} in
   step_3_freeboxos_download
   step_4_create_select_freeboxos_directories
   step_5_geckodriver_download
+  step_6_install_gpg_key
   ;;
 esac
 
