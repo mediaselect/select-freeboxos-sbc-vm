@@ -86,12 +86,6 @@ step_3_freeboxos_download() {
   echo "Step 3 - freeboxos download done"
 }
 
-arch32=("AArch32" "arm" "ARMv1" "ARMv2" "ARMv3" "ARMv4" "ARMv5" "ARMv6" "ARMv7")
-
-arch64=("AArch64" "arm64" "ARMv8" "ARMv9")
-
-info_not_arm=false
-
 step_4_create_select_freeboxos_directories() {
   echo "---------------------------------------------------------------------"
   echo "Starting step 4 - Creating .local/share/select_freeboxos"
@@ -114,36 +108,39 @@ step_4_create_select_freeboxos_directories() {
   echo "Step 4 - select_freeboxos directories created"
 }
 
+info_not_arm=false
+
 step_5_geckodriver_download() {
   echo "---------------------------------------------------------------------"
   echo "Starting step 5 - geckodriver download"
   cd "$HOME_DIR/.local/share/select_freeboxos"
-  cpu=$(lscpu | grep Architecture | awk {'print $2'})
-  cpu_lower=$(echo "$cpu" | tr '[:upper:]' '[:lower:]')
-  cpu_five_chars="${cpu_lower:0:5}"
 
-  if echo "${arch64[@],,}" | grep -q "$cpu_five_chars"
-  then
-    wget https://github.com/mozilla/geckodriver/releases/download/v0.35.0/geckodriver-v0.35.0-linux-aarch64.tar.gz
-    GECKODRIVER_AARCH64_SHA256="91d1e446646d8ee85830970e4480652b725f19e7ecbefa3ffd3947bc7be23a47"
-    if ! echo "$GECKODRIVER_AARCH64_SHA256 geckodriver-v0.35.0-linux-aarch64.tar.gz" | sha256sum -c -; then
-        echo "ERROR: Checksum verification failed for geckodriver v0.35.0 aarch64!"
-        exit 1
-    fi
-    sudo -u "$user" bash -c "tar xzvf geckodriver-v0.35.0-linux-aarch64.tar.gz"
-  elif echo "${arch32[@],,}" | grep -q "$cpu_five_chars"
-  then
-    wget https://github.com/jamesmortensen/geckodriver-arm-binaries/releases/download/v0.34.0/geckodriver-v0.34.0-linux-armv7l.tar.gz
-    GECKODRIVER_ARM_SHA256="381732e6d7abecfee36bc2f59f4324cfb913f4b08cd611a38148baf130f44e40"
-    if ! echo "$GECKODRIVER_ARM_SHA256 geckodriver-v0.34.0-linux-armv7l.tar.gz" | sha256sum -c -; then
-        echo "ERROR: Checksum verification failed for geckodriver v0.34.0 armv7l!"
-        exit 1
-    fi
-    sudo -u "$user" bash -c "tar xzvf geckodriver-v0.34.0-linux-armv7l.tar.gz"
-  else
-    info_not_arm=true
-  echo "Step 5 - geckodriver download done"
+  case "$(uname -m)" in
+    aarch64|arm64)
+      wget https://github.com/mozilla/geckodriver/releases/download/v0.35.0/geckodriver-v0.35.0-linux-aarch64.tar.gz
+      GECKODRIVER_SHA256="91d1e446646d8ee85830970e4480652b725f19e7ecbefa3ffd3947bc7be23a47"
+      FILE="geckodriver-v0.35.0-linux-aarch64.tar.gz"
+      ;;
+    armv7l)
+      wget https://github.com/jamesmortensen/geckodriver-arm-binaries/releases/download/v0.34.0/geckodriver-v0.34.0-linux-armv7l.tar.gz
+      GECKODRIVER_SHA256="381732e6d7abecfee36bc2f59f4324cfb913f4b08cd611a38148baf130f44e40"
+      FILE="geckodriver-v0.34.0-linux-armv7l.tar.gz"
+      ;;
+    *)
+      info_not_arm=true
+      echo "INFO: architecture $(uname -m) is not ARM, skipping geckodriver install"
+      echo "Step 5 - geckodriver download done"
+      return 0
+      ;;
+  esac
+
+  if ! echo "$GECKODRIVER_SHA256 $FILE" | sha256sum -c -; then
+    echo "ERROR: Checksum verification failed for $FILE!" >&2
+    exit 1
   fi
+
+  sudo -u "$user" tar xzvf "$FILE"
+  echo "Step 5 - geckodriver download done"
 }
 
 
