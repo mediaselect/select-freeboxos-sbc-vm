@@ -1,5 +1,8 @@
 #!/bin/bash
 
+set -euo pipefail
+export DEBIAN_FRONTEND=noninteractive
+
 # Installation des librairies:
 
 echo -e "Installation des librairies nécessaires\n"
