@@ -438,7 +438,7 @@ if go_on:
     with open(config_path, "w", encoding="utf-8") as f:
         json.dump(config, f, indent=4)
 
-    os.chmod(config_path, 0o640)
+    os.chmod(config_path, 0o600)
 
     http_status = 403
 
