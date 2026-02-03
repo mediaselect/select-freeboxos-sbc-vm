@@ -144,18 +144,6 @@ step_5_geckodriver_download() {
 }
 
 
-step_6_virtual_environment() {
-  echo "---------------------------------------------------------------------"
-  echo "Starting step 6 - Virtual env + requirements install"
-  sudo -u "$user" bash -c "virtualenv -p python3 .venv"
-  sudo -u "$user" bash -c '
-    source .venv/bin/activate
-    pip install -r "$HOME_DIR/select-freeboxos/requirements.txt"
-    '
-  echo "Step 6 - Virtual env created and requirements installed"
-}
-
-
 STEP=0
 
 case ${STEP} in
@@ -166,7 +154,6 @@ case ${STEP} in
   step_3_freeboxos_download
   step_4_create_select_freeboxos_directories
   step_5_geckodriver_download
-  step_6_virtual_environment
   ;;
 esac
 
