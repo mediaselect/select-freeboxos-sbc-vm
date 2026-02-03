@@ -14,25 +14,25 @@ step_1_upgrade() {
   echo "---------------------------------------------------------------------"
   echo "Starting step 1 - install"
   apt update
-  apt -y upgrade
+  apt upgrade -y
   echo "Step 1 - Install done"
 }
 
 step_2_mainpackage() {
   echo "---------------------------------------------------------------------"
   echo "Starting step 2 - packages"
-  apt -y install curl
-  apt -y install virtualenv
-  apt -y install unzip
-  apt -y install cron
-  apt -y install jq
+  apt install curl -y
+  apt install virtualenv -y
+  apt install unzip -y
+  apt install cron -y
+  apt install jq -y
   hostname=$(uname -n)
   codename=$(grep 'VERSION_CODENAME=' /etc/os-release | cut -d'=' -f2)
   if [ $hostname = "nanopineo" ]
   then
     add-apt-repository -y ppa:mozillateam/ppa
     apt update
-    apt -y install firefox-esr
+    apt install firefox-esr -y
   # elif [ $hostname = "lepotato" -a $codename = "bookworm" ]
   # then
   #   echo "Purge firefox-esr already installed on Le potato cards with \
@@ -45,21 +45,21 @@ step_2_mainpackage() {
   #   snap install firefox
   elif [ $codename = "bookworm" ]
   then
-    apt -y install firefox-esr
+    apt install firefox-esr -y
   elif [ $codename = "noble" ]
   then
     # snap remove firefox
     add-apt-repository -y ppa:mozillateam/ppa
     apt update
-    apt -y install firefox-esr
+    apt install firefox-esr -y
   elif [ $hostname = "raspbian-bullseye-aml-s905x-cc" -o $hostname = "NanoPi-NEO" ]
   then
-    apt -y install software-properties-common
+    apt install software-properties-common -y
     add-apt-repository -y ppa:mozillateam/ppa
     apt update
-    apt -y install firefox-esr
+    apt install firefox-esr -y
   else
-    apt -y install firefox
+    apt install firefox -y
   fi
   echo "step 2 - packages done"
 }
@@ -120,10 +120,20 @@ step_5_geckodriver_download() {
   if echo "${arch64[@],,}" | grep -q "$cpu_five_chars"
   then
     wget https://github.com/mozilla/geckodriver/releases/download/v0.35.0/geckodriver-v0.35.0-linux-aarch64.tar.gz
+    GECKODRIVER_AARCH64_SHA256="91d1e446646d8ee85830970e4480652b725f19e7ecbefa3ffd3947bc7be23a47"
+    if ! echo "$GECKODRIVER_AARCH64_SHA256 geckodriver-v0.35.0-linux-aarch64.tar.gz" | sha256sum -c -; then
+        echo "ERROR: Checksum verification failed for geckodriver v0.35.0 aarch64!"
+        exit 1
+    fi
     sudo -u $user bash -c "tar xzvf geckodriver-v0.35.0-linux-aarch64.tar.gz"
   elif echo "${arch32[@],,}" | grep -q "$cpu_five_chars"
   then
     wget https://github.com/jamesmortensen/geckodriver-arm-binaries/releases/download/v0.34.0/geckodriver-v0.34.0-linux-armv7l.tar.gz
+    GECKODRIVER_ARM_SHA256="381732e6d7abecfee36bc2f59f4324cfb913f4b08cd611a38148baf130f44e40"
+    if ! echo "$GECKODRIVER_ARM_SHA256 geckodriver-v0.34.0-linux-armv7l.tar.gz" | sha256sum -c -; then
+        echo "ERROR: Checksum verification failed for geckodriver v0.34.0 armv7l!"
+        exit 1
+    fi
     sudo -u $user bash -c "tar xzvf geckodriver-v0.34.0-linux-armv7l.tar.gz"
   else
     info_not_arm=true
