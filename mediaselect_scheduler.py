@@ -33,6 +33,7 @@ from sentry_sdk.integrations.logging import LoggingIntegration
 
 from channels_free import CHANNELS_FREE
 from module_freeboxos import is_snap_installed, is_firefox_snap, is_firefox_esr_installed
+from security_sanitizer import global_sanitizer, scrub_event
 
 def get_validated_user():
     """Securely get and validate the USER environment variable."""
@@ -119,38 +120,6 @@ def translate_month(month_num):
     else:
         return "Mois invalide"
 
-
-class SensitiveDataFilterScheduler(logging.Filter):
-    """Filter to redact sensitive data from logs."""
-
-    def __init__(self):
-        super().__init__()
-        self.sensitive_patterns = []
-
-    def filter(self, record):
-        """
-        This method is called automatically by Python's logging framework
-        for every log record that passes through handlers with this filter.
-        """
-        # Redact sensitive data from message
-        if record.msg:
-            msg = str(record.msg)
-            for pattern, replacement in self.sensitive_patterns:
-                msg = pattern.sub(replacement, msg)
-            record.msg = msg
-
-        # Redact from args if present
-        if record.args:
-            args = list(record.args) if isinstance(record.args, tuple) else [record.args]
-            for i, arg in enumerate(args):
-                if isinstance(arg, str):
-                    for pattern, replacement in self.sensitive_patterns:
-                        args[i] = pattern.sub(replacement, arg)
-            record.args = tuple(args) if isinstance(record.args, tuple) else args[0]
-
-        return True
-
-
 def cancel_record():
     text_to_click = "Annuler"
     xpath = f"//span[text()='{text_to_click}']"
@@ -164,11 +133,11 @@ def find_element_with_retries(driver, by, value, retries=3, delay=1):
         try:
             return driver.find_element(by, value)
         except NoSuchElementException:
-            logging.error(
+            logger.error(
                 f"Attempt {attempt + 1}/{retries}: Le bouton programmer un enregistrement n'a pas été trouvé."
             )
             sleep(delay)
-    logging.error(
+    logger.error(
         "Impossible de trouver le bouton programmer un enregistrement après plusieurs tentatives."
     )
     driver.quit()
@@ -218,10 +187,7 @@ if SENTRY_MONITORING_SDK:
         traces_sample_rate=0,
         send_default_pii=False,
         include_local_variables=False,
-        before_send=lambda event, hint: None if any(
-            keyword in str(event).lower()
-            for keyword in ['password', 'credential', 'secret', 'token']
-        ) else event,
+        before_send=scrub_event,
     )
     if sentry_sdk.Hub.current.client and sentry_sdk.Hub.current.client.options.get("traces_sample_rate", 0) > 0:
         sentry_sdk.profiler.start_profiler()
@@ -245,7 +211,7 @@ logger.addHandler(log_handler)
 sentry_handler = logging.StreamHandler()
 sentry_handler.setLevel(logging.WARNING)
 
-sensitive_filter = SensitiveDataFilterScheduler()
+sensitive_filter = global_sanitizer
 log_handler.addFilter(sensitive_filter)
 sentry_handler.addFilter(sensitive_filter)
 
@@ -275,16 +241,16 @@ def get_pass_entry(entry_name):
         )
         return result.stdout.strip()
     except subprocess.CalledProcessError:
-        logging.error(f"Error: Unable to retrieve {entry_name} from pass.")
+        logger.error(f"Error: Unable to retrieve {entry_name} from pass.")
         return None
     except subprocess.TimeoutExpired:
-        logging.error("Error: 'pass' command timed out when retrieving credentials.")
+        logger.error("Error: 'pass' command timed out when retrieving credentials.")
         return None
 
 def get_time_from_config():
     """Extracts CURL_HOUR and CURL_MINUTE from config.py."""
     if not os.path.isfile(CONFIG_PY_FILE):
-        logging.error("Error: Unable to retrieve scheduled hour from config file.")
+        logger.error("Error: Unable to retrieve scheduled hour from config file.")
         return None, None
 
     with open(CONFIG_PY_FILE, "r", encoding='utf-8') as f:
@@ -296,24 +262,41 @@ def get_time_from_config():
     if hour and minute:
         return f"{int(hour):02d}", f"{int(minute):02d}"
 
-    logging.error("Error: Could not extract CURL_HOUR or CURL_MINUTE from config.")
+    logger.error("Error: Could not extract CURL_HOUR or CURL_MINUTE from config.")
     return None, None
 
-def run_scheduled_task(username, password):
-    """Run the scheduled API request securely using requests."""
-    logging.info("Running scheduled task.")
+def update_info_json(username, password):
+    """Fetch program data and update info_progs.json securely."""
+    logger.info("Running scheduled task")
 
     try:
-        response = requests.get(API_URL, auth=(username, password), headers={"Accept": "application/json; indent=4"})
-        response.raise_for_status()  # Raise an error for HTTP failures
+        response = requests.get(
+            API_URL,
+            auth=(username, password),
+            headers={"Accept": "application/json; indent=4"},
+            timeout=5,
+        )
+        response.raise_for_status()
+    except requests.RequestException:
+        logger.exception("API request failed")
+        return False
 
-        with open(OUTPUT_FILE, "w", encoding='utf-8') as f:
-            f.write(response.text)
+    try:
+        data = response.json()
+    except ValueError:
+        logger.exception("Invalid JSON received from API")
+        return False
 
-        logging.info("Task completed successfully.")
+    try:
+        with open(OUTPUT_FILE, "w", encoding="utf-8") as f:
+            json.dump(data, f, indent=4, ensure_ascii=False)
+    except OSError:
+        logger.exception("Failed to write info_progs.json")
+        return False
 
-    except requests.RequestException as e:
-        logging.error(f"API request failed: {e}")
+    logger.info("Task completed successfully")
+    return True
+
 
 if __name__ == "__main__":
     username = get_pass_entry("media-select/email")
@@ -322,47 +305,21 @@ if __name__ == "__main__":
     FREEBOX_SERVER_IP = get_pass_entry("freeboxos/username")
     ADMIN_PASSWORD = get_pass_entry("freeboxos/password")
 
+    sensitive_filter.update_patterns({
+        "admin_password": ADMIN_PASSWORD,
+        "freebox_ip": FREEBOX_SERVER_IP,
+        "username": username,
+        "password": password,
+    })
+
     if not username or not password or not FREEBOX_SERVER_IP or not ADMIN_PASSWORD:
-        logging.error("Error: Missing credentials.")
+        logger.error("Error: Missing credentials.")
         exit(1)
 
     # Secure hostname validation (permissive but safe)
     if not re.match(r'^[^\s/<>:"\'\\\\]+$', FREEBOX_SERVER_IP):
-        logging.error("SECURITY ERROR: FREEBOX_SERVER_IP contains unsafe characters.")
+        logger.error("SECURITY ERROR: FREEBOX_SERVER_IP contains unsafe characters.")
         sys.exit(1)
-
-    sensitive_filter_updated = SensitiveDataFilterScheduler()
-
-    # Improve SensitiveDataFilterScheduler with redaction rules
-    if hasattr(sensitive_filter_updated, "sensitive_patterns"):
-        if ADMIN_PASSWORD:
-            escaped_pwd = re.escape(ADMIN_PASSWORD)
-            sensitive_filter_updated.sensitive_patterns.append(
-                (re.compile(escaped_pwd), "[REDACTED_ADMIN_PASSWORD]")
-            )
-
-        if FREEBOX_SERVER_IP:
-            escaped_ip = re.escape(FREEBOX_SERVER_IP)
-            sensitive_filter_updated.sensitive_patterns.append(
-                (re.compile(escaped_ip), "[REDACTED_HOST]")
-            )
-
-        if username:
-            escaped_user = re.escape(username)
-            sensitive_filter_updated.sensitive_patterns.append(
-                (re.compile(escaped_user), "[REDACTED_USERNAME]")
-            )
-
-        if password:
-            escaped_pw = re.escape(password)
-            sensitive_filter_updated.sensitive_patterns.append(
-                (re.compile(escaped_pw), "[REDACTED_PASSWORD]")
-            )
-
-    log_handler.removeFilter(sensitive_filter)
-    sentry_handler.removeFilter(sensitive_filter)
-    log_handler.addFilter(sensitive_filter_updated)
-    sentry_handler.addFilter(sensitive_filter_updated)
 
     last_config_check = time.time()
     curl_hour, curl_minute = get_time_from_config()
@@ -374,29 +331,31 @@ if __name__ == "__main__":
 
         current_time = time.strftime("%H:%M")
         if current_time == f"{curl_hour}:{curl_minute}":
-            run_scheduled_task(username, password)
+            update_info = update_info_json(username, password)
             time.sleep(61)
-
+            if not update_info:
+                time.sleep(30)
+                continue
             try:
                 with open(
                     f"/home/{user}/.local/share/select_freeboxos/info_progs.json", "r", encoding='utf-8'
                 ) as jsonfile:
                     data = json.load(jsonfile)
             except FileNotFoundError:
-                logging.error(
+                logger.error(
                     "No info_progs.json file. Need to check curl command or "
                     "internet connection. Exit programme."
                 )
                 continue
             except json.JSONDecodeError:
-                logging.error(
+                logger.error(
                     "Invalid JSON data in info_progs.json file. The file may be empty or corrupted."
                 )
                 continue
 
             if len(data) == 0:
                 atomic_file_copy(INFO_PROGS_FILE, INFO_PROGS_LAST_FILE)
-                logging.info("No data to record programmes. Exit programme.")
+                logger.info("No data to record programmes. Exit programme.")
                 continue
 
             if is_snap_installed() and is_firefox_snap():
@@ -418,21 +377,21 @@ if __name__ == "__main__":
                         sleep(8)
                     except WebDriverException as e:
                         if 'net::ERR_ADDRESS_UNREACHABLE' in e.msg:
-                            logging.error(
+                            logger.error(
                                 f"The programme cannot reach the address {FREEBOX_SERVER_IP} . Exit programme."
                             )
                             driver.quit()
                             continue
                         else:
-                            logging.error("A WebDriverException occurred. Exiting the program.")
-                            logging.error(f"Exception type: {type(e).__name__}")
+                            logger.error("A WebDriverException occurred. Exiting the program.")
+                            logger.error(f"Exception type: {type(e).__name__}")
                             driver.quit()
                             continue
 
                     try:
                         login = driver.find_element("id", "fbx-password")
                     except Exception as e:
-                        logging.error(
+                        logger.error(
                             "Cannot connect to Freebox OS. Exit programme.", exc_info=False
                         )
                         driver.quit()
@@ -449,7 +408,7 @@ if __name__ == "__main__":
                         invalid_password = driver.find_element(
                             By.XPATH, "//div[contains(text(), 'Identifiants invalides')]"
                         )
-                        logging.error(
+                        logger.error(
                             "Le mot de passe administrateur de la Freebox est invalide. "
                             "La programmation des enregistrements n'a pas "
                             "pu être réalisée. Merci de vérifier le mot de passe."
@@ -506,7 +465,7 @@ if __name__ == "__main__":
                         try:
                             channel_number = CHANNELS_FREE[video["channel"]]
                         except KeyError:
-                            logging.error(
+                            logger.error(
                                 "La chaine " + video["channel"] + " n'est pas "
                                 "présente dans le fichier channels_free.py"
                             )
@@ -533,8 +492,8 @@ if __name__ == "__main__":
                             try:
                                 programmer_enregistrements.click()
                             except ElementClickInterceptedException as e:
-                                logging.error("A ElementClickInterceptedException occurred.")
-                                logging.error(
+                                logger.error("A ElementClickInterceptedException occurred.")
+                                logger.error(
                                     "Impossible de programmer les enregistrements. "
                                     "Une fenêtre d'information empêche probablement "
                                     "de pouvoir clicker sur le bouton programmer un "
@@ -567,7 +526,7 @@ if __name__ == "__main__":
                                 last_channel = channel_uuid.get_attribute("value")
                                 n += 1
                                 if n > 10:
-                                    logging.error(
+                                    logger.error(
                                         "Impossible de sélectionner la chaîne. Merci de "
                                         "vérifier si la chaine n°" + channel_number + " qui "
                                         "correspond à la chaine " + video["channel"] + " "
@@ -598,7 +557,7 @@ if __name__ == "__main__":
                                             lambda d: start_time.get_attribute("value") == start_hour + ":" + start_minute
                                         )
                                     except:
-                                        logging.error("Timeout: The input field did not update to the correct time.")
+                                        logger.error("Timeout: The input field did not update to the correct time.")
 
                                     actual_start = start_time.get_attribute("value")
 
@@ -606,7 +565,7 @@ if __name__ == "__main__":
                                         break
                                     loop_counter += 1
                                     if loop_counter > 4:
-                                        logging.error(
+                                        logger.error(
                                             "Impossible de saisir l'heure de début pour le "
                                             "programme %s. Le programme ne sera pas enregistré.",
                                             validate_video_title(video['title'])
@@ -628,7 +587,7 @@ if __name__ == "__main__":
                                             lambda d: end_time.get_attribute("value") == end_hour + ":" + end_minute
                                         )
                                     except:
-                                        logging.error("Timeout: The input field did not update to the correct time.")
+                                        logger.error("Timeout: The input field did not update to the correct time.")
 
                                     actual_end = end_time.get_attribute("value")
 
@@ -636,7 +595,7 @@ if __name__ == "__main__":
                                         break
                                     loop_counter += 1
                                     if loop_counter > 4:
-                                        logging.error(
+                                        logger.error(
                                             "Impossible de saisir l'heure de fin pour le "
                                             "programme %s. Le programme ne sera pas enregistré.",
                                             validate_video_title(video['title'])
@@ -657,7 +616,7 @@ if __name__ == "__main__":
                                             name_prog.send_keys(validate_video_title(video["title"]))
                                             sleep(1)
                                         except ElementNotInteractableException:
-                                            logging.error(
+                                            logger.error(
                                                 "Une ElementNotInteractableException est apparue. "
                                                 "Le titre de MEDIA select ne sera pas utilisé pour "
                                                 "nommer le vidéo."
@@ -671,7 +630,7 @@ if __name__ == "__main__":
                                         internal_error = driver.find_element(
                                             By.XPATH, "//div[contains(text(), 'Erreur interne')]"
                                         )
-                                        logging.error(
+                                        logger.error(
                                             "Une erreur interne de la Freebox est survenue. "
                                             "La programmation des enregistrements n'a pas "
                                             "pu être réalisée. Merci de vérifier si le disque "
@@ -692,9 +651,8 @@ if __name__ == "__main__":
                     atomic_file_copy(INFO_PROGS_FILE, INFO_PROGS_LAST_FILE)
 
             except Exception as e:
-                logging.error("An unexpected error occurred:")
-                logging.error("Exception type: %s", type(e).__name__)
-                logging.error("Exception message: %s", str(e)[:100])
-
+                logger.error("An unexpected error occurred:")
+                logger.error("Exception type: %s", type(e).__name__)
+                logger.error("Exception message: %s", str(e)[:100])
 
         time.sleep(30)

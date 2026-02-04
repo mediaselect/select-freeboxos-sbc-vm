@@ -16,7 +16,7 @@ def get_website_title(url):
         title = soup.find("title").string.strip()
         return title
     except requests.exceptions.RequestException as e:
-        logging.error(f"An error occurred: {e}")
+        logger.error(f"An error occurred: {e}")
         return None
 
 def is_snap_installed():
