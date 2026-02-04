@@ -77,11 +77,11 @@ step_2_mainpackage() {
 step_3_freeboxos_download() {
   echo "---------------------------------------------------------------------"
   echo "Starting step 3 - freeboxos download"
-  cd "$HOME_DIR" && curl https://github.com/mediaselect/select-freeboxos-sbc-vm/archive/refs/tags/v2.0.0.zip -L -o select_freebox.zip
+  cd "$HOME_DIR" && curl https://github.com/mediaselect/select-freeboxos-sbc-vm/archive/refs/tags/v3.0.0.zip -L -o select_freebox.zip
   if [ -d "$HOME_DIR/select-freeboxos" ]; then
       rm -rf "$HOME_DIR/select-freeboxos"
   fi
-  unzip select_freebox.zip && mv select-freeboxos-sbc-vm-2.0.0 select-freeboxos && rm select_freebox.zip
+  unzip select_freebox.zip && mv select-freeboxos-sbc-vm-3.0.0 select-freeboxos && rm select_freebox.zip
   chown -R "$SUDO_USER:$SUDO_USER" "$HOME_DIR/select-freeboxos"
   echo "Step 3 - freeboxos download done"
 }
