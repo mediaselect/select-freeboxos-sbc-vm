@@ -21,7 +21,8 @@ from selenium.common.exceptions import (
     NoSuchElementException,
     WebDriverException,
     ElementNotInteractableException,
-    ElementClickInterceptedException
+    ElementClickInterceptedException,
+    TimeoutException
 )
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
@@ -290,8 +291,11 @@ if CRYPTED_CREDENTIALS:
 try:
     with webdriver.Firefox(service=service, options=options) as driver:
         try:
+            driver.set_page_load_timeout(20)
             driver.get(f"http://{FREEBOX_SERVER_IP}/login.php#Fbx.os.app.pvr.app")
             sleep(8)
+        except TimeoutException:
+            logger.warning("Page load timeout - but page may still be usable")
         except WebDriverException as e:
             if 'net::ERR_ADDRESS_UNREACHABLE' in e.msg:
                 logger.error(
