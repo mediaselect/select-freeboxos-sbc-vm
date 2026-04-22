@@ -1,7 +1,12 @@
 # 📺 select-freeboxos-sbc-vm v3.0.1
 
-> 📡 Turn your Freebox into an automated recording system
-> 🤖 Automatically schedule TV recordings via Freebox OS (dedicated machine)
+📡 Turn your Freebox into an automated recording system
+
+🤖 Automatically schedule TV recordings via Freebox OS (dedicated machine)
+
+![Demo](docs/demo-select-freeboxos.gif)
+
+---
 
 ![Python](https://img.shields.io/badge/Python-3.10+-blue)
 ![Platform](https://img.shields.io/badge/Platform-Linux-green)
@@ -123,6 +128,7 @@ sudo apt update && sudo apt install wget unzip pass
 
 ### Download
 
+```bash id="download"
 cd ~
 wget https://github.com/mediaselect/select-freeboxos-sbc-vm/archive/refs/tags/i3.0.0.zip -O install_freebox.zip
 
@@ -130,31 +136,38 @@ unzip install_freebox.zip
 rm -rf install-select-freeboxos-sbc-vm-3.0.0
 mv select-freeboxos-sbc-vm-i3.0.0 install-select-freeboxos-sbc-vm-3.0.0
 rm install_freebox.zip
+```
 
 ---
 
 ### Install
 
+```bash id="install1"
 cd install-select-freeboxos-sbc-vm-3.0.0
 sudo ./install.sh
+```
 
 ---
 
 ### Setup environment
 
+```bash id="requirements"
 cd ~/.local/share/select_freeboxos
 
 virtualenv -p python3 .venv
 source .venv/bin/activate
 pip install -r ~/select-freeboxos/requirements.txt
+```
 
 ---
 
 ### Install and start
 
+```bash id="install2"
 cd ~/select-freeboxos
 source ~/.local/share/select_freeboxos/.venv/bin/activate
 python3 install.py
+```
 
 ---
 
