@@ -477,8 +477,7 @@ try:
                         "de pouvoir clicker sur le bouton programmer un "
                         "enregistrement."
                     )
-                    driver.quit()
-                    exit()
+                    break
                 sleep(3)
                 channel_uuid = driver.find_element("name", "channel_uuid")
                 sleep(1)
