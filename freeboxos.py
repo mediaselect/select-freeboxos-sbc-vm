@@ -22,7 +22,8 @@ from selenium.common.exceptions import (
     WebDriverException,
     ElementNotInteractableException,
     ElementClickInterceptedException,
-    TimeoutException
+    TimeoutException,
+    StaleElementReferenceException
 )
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
@@ -193,6 +194,47 @@ def crosses_sunday_to_monday(start, end):
     """Freebox OS refuses a recording that begins on Sunday and ends on Monday
     ("La durée d'enregistrement est trop longue")."""
     return start.weekday() == 6 and end.date() > start.date()
+
+
+def popup_is_displayed(driver, message_text):
+    """True if a visible Freebox OS popup contains message_text."""
+    xpath = f"//div[contains(@class, 'x-form-display-field') and contains(text(), '{message_text}')]"
+    for e in driver.find_elements(By.XPATH, xpath):
+        try:
+            if e.is_displayed():
+                return True
+        except StaleElementReferenceException:
+            continue
+    return False
+
+
+def close_error_popup(driver, message_text):
+    """Click the button of the popup containing message_text.
+    Returns True if the popup was closed."""
+    popup_xpath = (
+        "//div[contains(@class, 'x-window')]"
+        f"[.//div[contains(text(), '{message_text}')]]"
+    )
+    button_xpath = (
+        popup_xpath
+        + "//*[contains(concat(' ', normalize-space(@class), ' '), ' x-btn ')]"
+    )
+    try:
+        button = WebDriverWait(driver, 10).until(
+            EC.element_to_be_clickable((By.XPATH, button_xpath))
+        )
+        try:
+            button.click()
+        except ElementClickInterceptedException:
+            driver.execute_script("arguments[0].click();", button)
+
+        WebDriverWait(driver, 10).until(
+            lambda d: not popup_is_displayed(d, message_text)
+        )
+        return True
+    except TimeoutException:
+        logger.error("Impossible de fermer la fenêtre d'erreur de la Freebox.")
+        return False
 
 
 if SENTRY_MONITORING_SDK:
@@ -571,6 +613,17 @@ try:
                         sauvegarder = driver.find_element(By.XPATH, xpath)
                         sauvegarder.click()
                         sleep(5)
+                        if popup_is_displayed(driver, "trop longue"):
+                            logger.error(
+                                "Freebox OS a refusé le programme %s : "
+                                "la durée d'enregistrement est trop longue.",
+                                validate_video_title(video["title"]),
+                            )
+                            if not close_error_popup(driver, "trop longue"):
+                                break  # popup stuck, next clicks would fail
+                            sleep(1)
+                            cancel_record(driver)
+                            continue
                         try:
                             internal_error = driver.find_element(
                                 By.XPATH, "//div[contains(text(), 'Erreur interne')]"
@@ -582,26 +635,6 @@ try:
                                 "dur n'est pas plein."
                             )
                             break
-                        except NoSuchElementException:
-                            pass
-                        try:
-                            driver.find_element(
-                                By.XPATH,
-                                "//div[contains(@class, 'x-form-display-field') "
-                                "and contains(text(), 'trop longue')]"
-                            )
-                            logger.error(
-                                "Freebox OS a refusé le programme %s : "
-                                "la durée d'enregistrement est trop longue.",
-                                validate_video_title(video["title"]),
-                            )
-                            # close the popup, then the programming window
-                            driver.find_element(
-                                By.XPATH, "//span[text()='OK']"
-                            ).click()
-                            sleep(1)
-                            cancel_record(driver)
-                            continue
                         except NoSuchElementException:
                             pass
                 else:
