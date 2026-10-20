@@ -1,4 +1,4 @@
-# 📺 select-freeboxos-sbc-vm v3.0.2
+# 📺 select-freeboxos-sbc-vm v3.0.3
 
 📡 Turn your Freebox into an automated recording system
 
