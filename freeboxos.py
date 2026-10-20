@@ -188,6 +188,13 @@ def atomic_file_copy(src, dst):
             tmp_path.unlink()
         raise e
 
+
+def crosses_sunday_to_monday(start, end):
+    """Freebox OS refuses a recording that begins on Sunday and ends on Monday
+    ("La durée d'enregistrement est trop longue")."""
+    return start.weekday() == 6 and end.date() > start.date()
+
+
 if SENTRY_MONITORING_SDK:
     sentry_sdk.init(
         dsn="https://085eb844a807c3c997195cf7cd60a5a3@o4508778574381056.ingest.de.sentry.io/4508778965106768",
@@ -380,6 +387,17 @@ try:
             start_minute = start.strftime("%M")
 
             end = start + timedelta(seconds=video["duration"])
+
+            if crosses_sunday_to_monday(start, end):
+                logger.error(
+                    "Le programme %s (%s) ne peut pas être enregistré : "
+                    "Freebox OS refuse les enregistrements qui commencent "
+                    "le dimanche et se terminent le lundi.",
+                    validate_video_title(video["title"]),
+                    start.strftime("%d/%m/%Y %H:%M"),
+                )
+                continue
+
             end_hour = end.strftime("%H")
             end_minute = end.strftime("%M")
 
@@ -564,6 +582,26 @@ try:
                                 "dur n'est pas plein."
                             )
                             break
+                        except NoSuchElementException:
+                            pass
+                        try:
+                            driver.find_element(
+                                By.XPATH,
+                                "//div[contains(@class, 'x-form-display-field') "
+                                "and contains(text(), 'trop longue')]"
+                            )
+                            logger.error(
+                                "Freebox OS a refusé le programme %s : "
+                                "la durée d'enregistrement est trop longue.",
+                                validate_video_title(video["title"]),
+                            )
+                            # close the popup, then the programming window
+                            driver.find_element(
+                                By.XPATH, "//span[text()='OK']"
+                            ).click()
+                            sleep(1)
+                            cancel_record(driver)
+                            continue
                         except NoSuchElementException:
                             pass
                 else:
